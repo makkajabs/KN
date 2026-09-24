@@ -193,3 +193,13 @@ Hak: warehouse@ = view/create/count (hitung buta: tanpa declared/read/converted/
 Alur: POST /goods-receipts {partner_type:"supplier", partner_id:<supplier_id PO>, warehouse_id, po_ids} → POST /{id}/manual-entry {expected_version} → PATCH /{id}/dn {expected_version, number, date} → POST /{id}/lines {expected_version, declared:{qty,unit,rolls}, target:{type:"po_task", task_id}} → POST /{id}/start-count → POST /{id}/lines/1/scan-label {raw} atau /lines/1/rolls {length, lot} → POST /{id}/finish-count → POST /{id}/discrepancies/{key}/resolve {action, reason} → POST /{id}/close. Batal: POST /{id}/cancel {expected_version, reason}.
 Kandidat target: GET /goods-receipts/{id}/targets. Mode GRN: kunci `receiving.mode` (PUT /api/config/values, kembalikan ke `legacy` setelah uji).
 Contoh label untuk tugas PO prod_batik_mega (supplier Cirebon Craft): `CBN-MEGA-PREM|DL-X|<roll unik>|50`. Uji: `backend/tests/test_grn_phase2.py`.
+
+GRN FASE 3 (UI Kedatangan Barang): layar `?view=goods-receipts&entity=ent_ksc` (menu Gudang & Logistik → Kedatangan Barang; deep link `&grn=<id>`).
+Testid: tab `grn-view-tab-list|variance`, `grn-new-button`, filter `grn-filter-<status|all>`, `grn-search`, kartu `grn-card-<id>`.
+Wizard `grn-wizard`: `grn-wizard-type-supplier|makloon`, `grn-wizard-partner` (KNSelect, opsi `grn-wizard-partner-option-<id>`), `grn-wizard-doc-<poId>`, `grn-wizard-warehouse`, `grn-wizard-next`, `grn-wizard-files`, `grn-wizard-submit`.
+Detail `grn-detail`: `grn-detail-number`, `grn-detail-status`, `grn-stepper`, tab `grn-tab-review|count|recon`, `grn-cancel`.
+Review: `grn-manual-entry`, kepala SJ `grn-dn-number|date|supplier-printed|recipient|po-refs|plate`, `grn-dn-save`; baris `grn-line-code|desc|po-ref|qty|unit|rolls|kg|basis|grade|lot|nonstock|target`, `grn-line-add`, tabel `grn-line-row-<n>`, `grn-line-toggle-<n>`, `grn-line-delete-<n>`, `grn-start-count`, `grn-reject`.
+Hitung: `grn-count-line-<n>`, `grn-count-scan-<n>` (Enter), `grn-count-length|kg|lot|grade-<n>`, `grn-count-add-<n>`, `grn-count-undo-<rollId>`, `grn-finish-count`, `grn-blind-note`.
+Rekonsiliasi: `grn-recon-row-<n>`, `grn-disc-<key>-<action>` (key mis. L1:short_vs_dn), `grn-close`, `grn-reopen-count`, `grn-close-results`.
+Selisih Supplier: `grn-variance-panel`, `grn-variance-range-90|180|365|all`, `grn-variance-row-<partnerId>`, `grn-variance-open-<grnId>`.
+PO: tombol `receive-goods-button` → buka wizard GRN terisi supplier+PO; `receive-goods-legacy-button` → Barang Masuk lama. Panel tugas lama: `inbound-grn-banner`, `inbound-grn-open`.
