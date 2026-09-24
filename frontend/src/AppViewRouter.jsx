@@ -143,6 +143,7 @@ const DesignGalleryView = lazy(() => import("./features/hr/DesignGalleryView"));
 const HrAnalyticsView = lazy(() => import("./features/hr/HrAnalyticsView"));
 const StockAnalyticsView = lazy(() => import("./features/inventory/StockAnalyticsView"));
 const LocationPutawayView = lazy(() => import("./features/wms/LocationPutawayView"));
+const GoodsReceiptsView = lazy(() => import("./features/wms/grn/GoodsReceiptsView"));
 const RfidTagsView = lazy(() => import("./features/rfid/RfidTagsView"));
 const RfidDevicesView = lazy(() => import("./features/rfid/RfidDevicesView"));
 const RfidGateMonitorView = lazy(() => import("./features/rfid/RfidGateMonitorView"));
@@ -447,6 +448,7 @@ export default function AppViewRouter(props) {
       {activeView === "cs-design-gallery" && <DesignGalleryView currentUser={user} selectedEntity={selectedEntity} />}
       {activeView === "cs-bi-hrd" && <HrAnalyticsView currentUser={user} selectedEntity={selectedEntity} />}
       {activeView === "cs-stock-analytics" && <StockAnalyticsView currentUser={user} selectedEntity={selectedEntity} />}
+      {activeView === "goods-receipts" && <GoodsReceiptsView currentUser={user} selectedEntity={selectedEntity} focusDoc={focusDoc} onClearFocus={() => setFocusDoc(null)} />}
       {activeView === "wms-locations" && <LocationPutawayView currentUser={user} selectedEntity={selectedEntity} />}
       {activeView === "cs-rfid-tags" && <RfidTagsView currentUser={user} selectedEntity={selectedEntity} />}
       {activeView === "cs-rfid-devices" && <RfidDevicesView currentUser={user} selectedEntity={selectedEntity} />}

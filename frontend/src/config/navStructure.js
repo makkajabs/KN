@@ -1,6 +1,7 @@
 // ─── NAV STRUCTURE DATA (hub-and-tab IA) + HUB TABS ──────────────────────────
 // Dipisah dari navigationConfig.js agar file config di bawah batas guardrail.
 import {
+  ClipboardCheck,
   AlertTriangle,
   Megaphone,
   Sparkles,
@@ -223,6 +224,7 @@ export const NAV_STRUCTURE = [
       // progres gudang TANPA membuka layar gudang. `sales_admin` tetap melihatnya
       // (izin `wms.view` — memantau, tanpa aksi) lewat overlay ROLE_NAV.
       { id: "wms-operations",     label: "Operasi Gudang", icon: Warehouse, roles: ["admin", "warehouse", "manager"], hub: "wms-operations" },
+      { id: "goods-receipts",     label: "Kedatangan Barang", icon: ClipboardCheck, roles: ["admin", "warehouse", "manager", "warehouse_admin", "finance"], view: "goods-receipts" },
       { id: "stock-atp",          label: "Stok & ATP",           icon: Boxes,     roles: ["admin", "warehouse", "manager", "sales"], hub: "stock-atp" },
       { id: "production",         label: "Produksi",  icon: Factory,   roles: ["admin", "manager", "warehouse"] },
       { id: "wms-locations",      label: "Lokasi Rak",     icon: MapPin,    roles: ["admin", "warehouse", "manager"] },

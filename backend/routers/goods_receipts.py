@@ -5,7 +5,7 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import Response
 
 from db import db
-from dependencies import require_permission
+from dependencies import require_any_permission, require_permission
 from entity_scope import entity_ctx
 from schemas_goods_receipt import (GRNCountRollIn, GRNCreateIn, GRNDnPatch, GRNLineIn, GRNLinePatch, GRNReasonIn,
                                    GRNResolveIn, GRNScanIn, GRNVersionIn)
@@ -51,6 +51,24 @@ async def list_grn(request: Request, status: str = "", partner_id: str = "", q: 
              "open_blockers": len(gc.open_blockers(r.get("discrepancies") or [])),
              "created_by": r.get("created_by"), "created_at": r.get("created_at"),
              "closed_at": r.get("closed_at", "")} for r in rows]
+
+
+@router.get("/goods-receipts/partners")
+async def grn_partners(request: Request, partner_type: str = "supplier") -> List[Dict[str, Any]]:
+    _, ctx = await _act(request, "create")
+    return await gs.list_partners(partner_type, ctx)
+
+
+@router.get("/goods-receipts/supplier-variance")
+async def grn_supplier_variance(request: Request, since: str = "") -> List[Dict[str, Any]]:
+    await require_any_permission(request, [(M, "view"), ("purchase_order", "view")])
+    return await gs.supplier_variance(await entity_ctx(request), since)
+
+
+@router.get("/goods-receipts/{grn_id}/rolls")
+async def grn_rolls(grn_id: str, request: Request) -> List[Dict[str, Any]]:
+    _, ctx = await _act(request, "view")
+    return await gs.list_rolls(grn_id, ctx)
 
 
 @router.get("/goods-receipts/{grn_id}")

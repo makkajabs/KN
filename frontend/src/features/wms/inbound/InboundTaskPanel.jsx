@@ -129,6 +129,24 @@ export default function InboundTaskPanel({
           )}
         </div>
 
+        {/* GRN Fase 3 — tugas yang dikelola Kedatangan Barang menjadi baca-saja di layar lama. */}
+        {(task.grn_active_id || (task.grn_ids || []).length > 0) && (
+          <div data-testid="inbound-grn-banner"
+            className={`flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-[11px] ${task.grn_active_id ? "border-[#CFE0FF] bg-[#EEF4FF] text-[#0058CC]" : "border-[#BFE3DC] bg-[#E7F6F3] text-[#0F766E]"}`}>
+            <span>
+              {task.grn_active_id
+                ? <>Bagian dari GRN <b>{task.grn_active_number}</b> — sedang dihitung di Kedatangan Barang. Layar ini baca-saja.</>
+                : <>Diterima lewat Kedatangan Barang{(task.supplier_dn_numbers || []).length ? ` · SJ ${task.supplier_dn_numbers.join(", ")}` : ""}.</>}
+            </span>
+            {(task.grn_active_id || task.grn_ids?.[task.grn_ids.length - 1]) && (
+              <a data-testid="inbound-grn-open" className="shrink-0 font-semibold underline"
+                href={`?view=goods-receipts&grn=${task.grn_active_id || task.grn_ids[task.grn_ids.length - 1]}${task.entity_id ? `&entity=${task.entity_id}` : ""}`}>
+                Buka GRN
+              </a>
+            )}
+          </div>
+        )}
+
         {/* Escalation info */}
         {task.status === "escalated" && task.escalation && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-[11px]">
@@ -142,7 +160,7 @@ export default function InboundTaskPanel({
           </div>
         )}
 
-        {!["completed", "escalated"].includes(task.status) && (
+        {!["completed", "escalated"].includes(task.status) && !task.grn_active_id && (
           <>
             <div className="flex items-center gap-1 rounded-lg bg-[#F2F2F7] p-0.5 text-[10.5px] font-semibold" data-testid="inbound-mode-toggle">
               <button type="button" onClick={() => setMode("label")} data-testid="inbound-mode-label"

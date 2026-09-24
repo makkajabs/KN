@@ -114,6 +114,7 @@ export const PAGE_META = {
   "cs-price-list":        { kicker: "Produk & Harga", title: "Harga per Pelanggan" },
   "cs-bom":               { kicker: "Pembelian",      title: "BOM Printing" },
   "cs-stock-analytics":   { kicker: "Gudang",         title: "Analitik Stok (Cepat/Lambat/Mati)" },
+  "goods-receipts":       { kicker: "Gudang",         title: "Kedatangan Barang · Surat Jalan & Hitung Fisik" },
   "wms-locations":        { kicker: "Gudang",         title: "Lokasi Gudang & Penempatan Rak" },
   "production":           { kicker: "Gudang",         title: "Produksi In-House \u00b7 BOM & Work Order" },
   "scheduler":            { kicker: "Pengaturan",     title: "Penjadwal & Notifikasi \u00b7 Alert Otomatis" },

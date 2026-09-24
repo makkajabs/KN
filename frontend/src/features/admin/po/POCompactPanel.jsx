@@ -119,11 +119,18 @@ export default function POCompactPanel({ po, currentUser, onClose, onOpenFull,
         {/* Tindakan sesuai lifecycle — tetap di ringkasan supaya tak perlu buka pop-up */}
         <div className="flex flex-col gap-1.5">
           {canReceive && onOpenDocument && (
+            <>
             <button data-testid="receive-goods-button" className="primary-button justify-center"
-              title="Buka Operasi Gudang → Barang Masuk dengan tugas penerimaan PO ini terpilih"
-              onClick={() => onOpenDocument({ view: "operations", nav_id: "wms-operations", tab: "inbound", focus_type: "purchase_order", focus_id: po.id })}>
+              title="Buka Kedatangan Barang baru dengan supplier & PO ini sudah terisi"
+              onClick={() => onOpenDocument({ view: "goods-receipts", nav_id: "goods-receipts", focus_type: "purchase_order", focus_id: po.id })}>
               <PackageCheck size={13} /> Terima Barang di Gudang
             </button>
+            <button data-testid="receive-goods-legacy-button" className="secondary-button justify-center"
+              title="Layar lama: Operasi Gudang → Barang Masuk"
+              onClick={() => onOpenDocument({ view: "operations", nav_id: "wms-operations", tab: "inbound", focus_type: "purchase_order", focus_id: po.id })}>
+              Barang Masuk (lama)
+            </button>
+            </>
           )}
           {po.status === "waiting_approval" && canManage && (
             <button data-testid="approve-po-button" onClick={() => onApprove(po.id)} className="primary-button justify-center">

@@ -330,11 +330,18 @@ export default function PODetailPanel({ po, currentUser, onClose, onApprove, onC
         {/* Actions */}
         <div className="flex flex-col gap-1.5">
           {canReceive && onOpenDocument && (
+            <>
             <button data-testid={`${tp}receive-goods-button`} className="primary-button justify-center"
-              title="Buka Operasi Gudang → Barang Masuk dengan tugas penerimaan PO ini terpilih"
-              onClick={() => onOpenDocument({ view: "operations", nav_id: "wms-operations", tab: "inbound", focus_type: "purchase_order", focus_id: po.id })}>
+              title="Buka Kedatangan Barang baru dengan supplier & PO ini sudah terisi"
+              onClick={() => onOpenDocument({ view: "goods-receipts", nav_id: "goods-receipts", focus_type: "purchase_order", focus_id: po.id })}>
               <PackageCheck size={13} /> Terima Barang di Gudang
             </button>
+            <button data-testid={`${tp}receive-goods-legacy-button`} className="secondary-button justify-center"
+              title="Layar lama: Operasi Gudang → Barang Masuk"
+              onClick={() => onOpenDocument({ view: "operations", nav_id: "wms-operations", tab: "inbound", focus_type: "purchase_order", focus_id: po.id })}>
+              Barang Masuk (lama)
+            </button>
+            </>
           )}
           {amendable && canManage && (
             <button data-testid={`${tp}amend-po-button`} onClick={() => onAmend?.(po)} className="secondary-button justify-center">

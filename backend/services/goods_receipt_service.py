@@ -647,3 +647,89 @@ async def delete_roll(grn_id: str, roll_id: str, actor: Dict[str, Any], ctx: Ent
     await audit(actor["name"], "grn_roll_removed", "goods_receipt", grn_id, {"roll_id": roll_id},
                 scope_entity_id=grn["entity_id"])
     return doc
+
+
+# ── pendukung layar (Fase 3) ─────────────────────────────────────────────────
+async def list_partners(partner_type: str, ctx: EntityContext) -> List[Dict[str, Any]]:
+    """Mitra yang punya PO/MKO terbuka menunggu barang di badan usaha aktif (langkah 1 wizard)."""
+    from routers.purchase_orders import TERMINAL_PO_STATUSES
+    ent = ctx.active_entity_id
+    out: Dict[str, Dict[str, Any]] = {}
+    if partner_type == "makloon":
+        for o in await db.makloon_orders.find({"entity_id": ent, "status": {"$nin": ["completed", "cancelled"]}},
+                                              {"_id": 0, "id": 1, "mko_number": 1, "steps": 1,
+                                               "target_warehouse_id": 1}).to_list(1000):
+            for s in o.get("steps") or []:
+                if s.get("status") == "issued" and s.get("makloon_id"):
+                    p = out.setdefault(s["makloon_id"], {"partner_id": s["makloon_id"],
+                                                         "partner_name": s.get("makloon_name", ""), "open_docs": []})
+                    if not any(d["id"] == o["id"] for d in p["open_docs"]):
+                        p["open_docs"].append({"id": o["id"], "number": o.get("mko_number", ""),
+                                               "warehouse_id": o.get("target_warehouse_id", "")})
+        return sorted(out.values(), key=lambda x: x["partner_name"])
+    po_ids = await db.wms_tasks.distinct("po_id", {"entity_id": ent, "flow_type": "inbound",
+                                                   "status": {"$in": ACTIVE_TASK}, "po_id": {"$gt": ""}})
+    for po in await db.purchase_orders.find(
+            {"id": {"$in": po_ids}, "status": {"$nin": list(TERMINAL_PO_STATUSES)}},
+            {"_id": 0, "id": 1, "po_number": 1, "supplier_id": 1, "supplier_name": 1, "warehouse_id": 1}).to_list(1000):
+        p = out.setdefault(po["supplier_id"], {"partner_id": po["supplier_id"],
+                                               "partner_name": po.get("supplier_name", ""), "open_docs": []})
+        p["open_docs"].append({"id": po["id"], "number": po.get("po_number", ""),
+                               "warehouse_id": po.get("warehouse_id", "")})
+    return sorted(out.values(), key=lambda x: x["partner_name"])
+
+
+async def list_rolls(grn_id: str, ctx: EntityContext) -> List[Dict[str, Any]]:
+    """Roll yang sudah dihitung di GRN ini (angka hitung fisik — boleh dilihat penghitung)."""
+    grn = await load(grn_id, ctx)
+    rows = await db.inventory_rolls.find(
+        {"grn_id": grn_id}, {"_id": 0, "id": 1, "roll_no": 1, "grn_line_no": 1, "length_initial": 1, "unit": 1,
+                             "weight_kg": 1, "lot": 1, "dye_lot": 1, "grade": 1, "status": 1, "scan_source": 1,
+                             "supplier_roll_no": 1, "actual_task_qty": 1, "declared_task_qty": 1,
+                             "created_at": 1}).sort("created_at", 1).to_list(2000)
+    for ln in grn.get("lines") or []:
+        for r in (ln.get("counted") or {}).get("makloon_rolls") or []:
+            rows.append({"id": r["id"], "roll_no": "", "grn_line_no": ln["line_no"], "length_initial": r["length"],
+                         "unit": (ln.get("target") or {}).get("unit", ""), "weight_kg": r.get("weight_kg"),
+                         "lot": r["lot"], "dye_lot": r.get("dye_lot", ""), "grade": r["grade"], "status": "makloon",
+                         "scan_source": "count", "created_at": r.get("at", "")})
+    return rows
+
+
+async def supplier_variance(ctx: EntityContext, since: str = "") -> List[Dict[str, Any]]:
+    """Ringkasan selisih per mitra dari GRN yang DITUTUP: siapa yang sering kirim kurang / diklaim."""
+    ents = ctx.allowed_entity_ids if ctx.view_all else [ctx.active_entity_id]
+    flt: Dict[str, Any] = {"entity_id": {"$in": ents}, "status": "closed"}
+    if since:
+        flt["closed_at"] = {"$gte": since}
+    agg: Dict[str, Dict[str, Any]] = {}
+    for g in await db.goods_receipts.find(flt, {"_id": 0}).sort("closed_at", -1).to_list(5000):
+        a = agg.setdefault(g["partner_id"], {
+            "partner_id": g["partner_id"], "partner_name": g["partner_name"], "partner_type": g["partner_type"],
+            "grn_count": 0, "lines": 0, "short_lines": 0, "short_qty": 0.0, "rolls_mismatch": 0, "not_arrived": 0,
+            "over_remaining": 0, "claims": 0, "grn_with_issue": 0, "last_closed_at": "", "recent": []})
+        a["grn_count"] += 1
+        a["last_closed_at"] = a["last_closed_at"] or g.get("closed_at", "")
+        kinds: List[str] = []
+        for ln in g.get("lines") or []:
+            if ln.get("is_non_stock"):
+                continue
+            a["lines"] += 1
+            cls = (ln.get("recon") or {}).get("classes") or []
+            if "short_vs_dn" in cls or "not_arrived" in cls:
+                a["short_lines"] += 1
+                a["short_qty"] = round(a["short_qty"] - min(0.0, float((ln.get("recon") or {}).get("diff_qty") or 0)), 2)
+            a["rolls_mismatch"] += int("rolls_mismatch" in cls)
+            a["not_arrived"] += int("not_arrived" in cls)
+            a["over_remaining"] += int("over_remaining" in cls)
+            a["claims"] += int(bool(ln.get("claim")))
+            kinds += [c for c in cls if c not in ("match", "non_stock", "rejected")]
+        if kinds:
+            a["grn_with_issue"] += 1
+            if len(a["recent"]) < 5:
+                a["recent"].append({"id": g["id"], "number": g["number"], "dn_number": (g.get("dn") or {}).get("number", ""),
+                                    "closed_at": g.get("closed_at", ""), "kinds": sorted(set(kinds))})
+    rows = list(agg.values())
+    for r in rows:
+        r["issue_rate_pct"] = round(r["grn_with_issue"] / r["grn_count"] * 100, 1) if r["grn_count"] else 0.0
+    return sorted(rows, key=lambda r: (-r["issue_rate_pct"], -r["short_qty"]))
