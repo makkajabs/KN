@@ -392,4 +392,12 @@ Keputusan user: Fase 0 dulu · kunci OpenAI menyusul (Fase 4) · keputusan klien
 - Uji: `tests/test_grn_phase2.py` 6/6 (golden setara jalur lama, hitung buta, DN_DUPLICATE, pemblokir+resolve, tepat satu tugas sisa, batal bersih, mode grn, isolasi entitas). Total GRN 22/22.
 - Temuan: `_create_inbound_tasks_for_po` menganggap tugas `qc_pending` "masih ada" (dan menimpa expected_qty-nya) → tidak dipakai untuk sisa; diganti `ensure_remainder_task`.
 - Catatan uji lama: `tests/test_fase_sl_*.py` memakai id tugas seed LAMA tertulis mati (`wms_e2e3d9059660`) → 404 di DB seed baru (bukan regresi; dengan id seed sekarang 18/18 lulus).
-### Berikutnya: Fase 3 (frontend GRN: menu Kedatangan Barang, wizard, Review, Hitung, Rekonsiliasi) → pilot manual → Fase 4 OCR (butuh kunci OpenAI).
+## GRN Fase 3 selesai — frontend Kedatangan Barang (2026-06)
+- Layar `?view=goods-receipts` (menu Gudang & Logistik → Kedatangan Barang): daftar per status + cari, wizard 2 langkah (mitra+PO/MKO+gudang → foto SJ multi-halaman, diperkecil 2048px JPEG 0,85, peringatan foto kecil), detail dengan stepper, tab Surat jalan (foto zoom/putar + kepala SJ + tabel baris + target), Hitung (scan label / roll manual / undo, hitung buta), Rekonsiliasi (tabel SJ vs hitung vs sisa PO, penyelesaian selisih via askReason, Tutup Penerimaan terkunci bila ada pemblokir, hasil posting & tugas sisa).
+- Tab "Selisih Supplier": ringkasan per mitra dari GRN ditutup (`GET /goods-receipts/supplier-variance`).
+- Tombol PO "Terima Barang di Gudang" → wizard GRN terisi supplier+PO+gudang; "Barang Masuk (lama)" tetap ada.
+- Panel tugas lama: banner "Bagian dari GRN …" + baca-saja saat dihitung; setelah tutup "Diterima lewat Kedatangan Barang · SJ …".
+- Endpoint baru: `GET /goods-receipts/partners`, `/{id}/rolls`, `/supplier-variance`.
+- Uji: iteration_67 (backend 28/28 + UI dasar), iteration_68 (alur hitung→rekon→tutup→selisih, hitung buta, banner). Perbaikan: isian kepala SJ tidak lagi tertimpa/409 setelah "Isi manual".
+- Data demo: KSC/GRN-00003 ditutup (100 yd PO-00014, klaim supplier) + tugas sisa 150 yd.
+### Berikutnya: pilot manual 1–2 minggu → Fase 4 OCR OpenAI (butuh kunci API + persetujuan kirim foto SJ ke OpenAI) → Fase 5 makloon di GRN.

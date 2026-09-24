@@ -16,13 +16,15 @@ const tgtBody = (k) => {
 };
 const num = (v) => (v === "" || v == null ? null : Number(v));
 
-function DnForm({ grn, run }) {
+function DnForm({ grn, run, busy }) {
   const [dn, setDn] = useState(grn.dn || {});
-  useEffect(() => setDn(grn.dn || {}), [grn.dn]);
-  const set = (k) => (e) => setDn((d) => ({ ...d, [k]: e.target.value }));
-  const save = () => run(() => grnApi.patch(grn.id, "dn", { expected_version: grn.version, number: dn.number || "", date: dn.date || "",
+  const [dirty, setDirty] = useState(false);
+  // Isian yang belum disimpan TIDAK ditimpa saat dokumen berubah (mis. hasil "Isi manual").
+  useEffect(() => { if (!dirty) setDn(grn.dn || {}); }, [grn.dn, dirty]);
+  const set = (k) => (e) => { setDirty(true); setDn((d) => ({ ...d, [k]: e.target.value })); };
+  const save = async () => { if (await run(() => grnApi.patch(grn.id, "dn", { expected_version: grn.version, number: dn.number || "", date: dn.date || "",
     supplier_name_printed: dn.supplier_name_printed || "", recipient_name: dn.recipient_name || "", vehicle_plate: dn.vehicle_plate || "",
-    po_refs: String(dn.po_refs_text ?? (dn.po_refs || []).join(", ")).split(",").map((s) => s.trim()).filter(Boolean) }));
+    po_refs: String(dn.po_refs_text ?? (dn.po_refs || []).join(", ")).split(",").map((s) => s.trim()).filter(Boolean) }))) setDirty(false); };
   return (
     <div data-testid="grn-dn-form" className="grid grid-cols-2 gap-2 rounded-xl border border-[#EFF0F2] p-3">
       <Field label="Nomor surat jalan *"><input data-testid="grn-dn-number" className={`${inputCls} font-mono`} value={dn.number || ""} onChange={set("number")} /></Field>
@@ -32,7 +34,7 @@ function DnForm({ grn, run }) {
       <Field label="Nomor PO di SJ (pisah koma)"><input data-testid="grn-dn-po-refs" className={inputCls} value={dn.po_refs_text ?? (dn.po_refs || []).join(", ")} onChange={set("po_refs_text")} /></Field>
       <Field label="Plat kendaraan"><input data-testid="grn-dn-plate" className={inputCls} value={dn.vehicle_plate || ""} onChange={set("vehicle_plate")} /></Field>
       <div className="col-span-2 flex justify-end">
-        <button data-testid="grn-dn-save" className="secondary-button" onClick={save}><Save size={13} /> Simpan kepala SJ</button>
+        <button data-testid="grn-dn-save" className="secondary-button" disabled={busy} onClick={save}><Save size={13} /> Simpan kepala SJ</button>
       </div>
     </div>
   );
@@ -112,12 +114,13 @@ function LineRow({ grn, ln, targets, run }) {
 export default function GrnReviewPanel({ grn, onChange, canReview }) {
   const [targets, setTargets] = useState([]);
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const { options } = useDomainEnums();
   const gradeOptions = options("grade");
   useEffect(() => { if (canReview) grnApi.targets(grn.id).then(setTargets).catch(() => setTargets([])); }, [grn.id, canReview]);
   const run = async (fn) => {
-    setErr("");
-    try { const r = await fn(); onChange(r?.grn || r); } catch (e) { setErr(errText(e)); }
+    setErr(""); setBusy(true);
+    try { const r = await fn(); onChange(r?.grn || r); return true; } catch (e) { setErr(errText(e)); return false; } finally { setBusy(false); }
   };
   const reject = async () => {
     const reason = await askReason({ title: "Tolak kedatangan ini?", message: "Barang tidak diterima di pintu gudang.", reasonLabel: "Alasan penolakan", confirmLabel: "Tolak" });
@@ -127,13 +130,14 @@ export default function GrnReviewPanel({ grn, onChange, canReview }) {
     <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" data-testid="grn-review-panel">
       <GrnPhotoPane grn={grn} />
       <div className="space-y-3">
+        <ErrorBox text={err} />
         {grn.status === "draft" && (
           <div className="flex items-center justify-between rounded-xl border border-[#FFE3B3] bg-[#FFF9EE] p-3 text-[11px]">
             <span>OCR belum aktif. Isi surat jalan secara manual dari foto.</span>
-            <button data-testid="grn-manual-entry" className="primary-button" onClick={() => run(() => grnApi.post(grn.id, "manual-entry", { expected_version: grn.version }))}>Isi manual</button>
+            <button data-testid="grn-manual-entry" className="primary-button" disabled={busy} onClick={() => run(() => grnApi.post(grn.id, "manual-entry", { expected_version: grn.version }))}>Isi manual</button>
           </div>
         )}
-        {canReview && <DnForm grn={grn} run={run} />}
+        {canReview && grn.status !== "draft" && <DnForm grn={grn} run={run} busy={busy} />}
         {grn.status === "review" && canReview && (<>
           <div className="overflow-x-auto rounded-xl border border-[#EFF0F2]">
             <table className="w-full text-left" data-testid="grn-lines-table">
@@ -147,10 +151,9 @@ export default function GrnReviewPanel({ grn, onChange, canReview }) {
           <LineForm grn={grn} targets={targets} gradeOptions={gradeOptions} run={run} />
           <div className="flex justify-end gap-2">
             <button data-testid="grn-reject" className="secondary-button" onClick={reject}>Tolak kedatangan</button>
-            <button data-testid="grn-start-count" className="primary-button" onClick={() => run(() => grnApi.post(grn.id, "start-count", { expected_version: grn.version }))}>Mulai hitung fisik</button>
+            <button data-testid="grn-start-count" className="primary-button" disabled={busy} onClick={() => run(() => grnApi.post(grn.id, "start-count", { expected_version: grn.version }))}>Mulai hitung fisik</button>
           </div>
         </>)}
-        <ErrorBox text={err} />
       </div>
     </div>
   );
