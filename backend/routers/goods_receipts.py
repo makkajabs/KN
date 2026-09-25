@@ -10,6 +10,7 @@ from entity_scope import entity_ctx
 from schemas_goods_receipt import (GRNCountRollIn, GRNCreateIn, GRNDnPatch, GRNLineIn, GRNLinePatch, GRNReasonIn,
                                    GRNResolveIn, GRNScanIn, GRNVersionIn)
 from services import goods_receipt_close_service as gc
+from services import goods_receipt_ocr_service as go
 from services import goods_receipt_service as gs
 
 router = APIRouter(prefix="/api")
@@ -65,6 +66,12 @@ async def grn_supplier_variance(request: Request, since: str = "") -> List[Dict[
     return await gs.supplier_variance(await entity_ctx(request), since)
 
 
+@router.get("/goods-receipts/usage")
+async def grn_ocr_usage(request: Request, month: str = "") -> Dict[str, Any]:
+    _, ctx = await _act(request, "approve")
+    return await go.usage_summary(month, ctx)
+
+
 @router.get("/goods-receipts/{grn_id}/rolls")
 async def grn_rolls(grn_id: str, request: Request) -> List[Dict[str, Any]]:
     _, ctx = await _act(request, "view")
@@ -74,7 +81,13 @@ async def grn_rolls(grn_id: str, request: Request) -> List[Dict[str, Any]]:
 @router.get("/goods-receipts/{grn_id}")
 async def get_grn(grn_id: str, request: Request, view: str = "review") -> Dict[str, Any]:
     actor, ctx = await _act(request, "view")
-    return await _out(await gs.load(grn_id, ctx), actor)
+    return await _out(await go.sweep_stale(await gs.load(grn_id, ctx)), actor)
+
+
+@router.post("/goods-receipts/{grn_id}/read")
+async def read_grn(grn_id: str, body: GRNVersionIn, request: Request) -> Dict[str, Any]:
+    actor, ctx = await _act(request, "create")
+    return await _out(await go.read_grn(grn_id, body.expected_version, actor, ctx), actor)
 
 
 @router.get("/goods-receipts/{grn_id}/targets")

@@ -24,3 +24,6 @@ class IntegrationsUpdate(BaseModel):
     gemini_model: Optional[str] = None
     gemini_enabled: Optional[bool] = None
     gemini_daily_limit: Optional[int] = None      # G-8
+    # GRN Fase 4 — kunci OpenAI untuk OCR surat jalan
+    openai_api_key: Optional[str] = None
+    openai_clear_key: bool = False

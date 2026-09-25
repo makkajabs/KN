@@ -27,6 +27,7 @@ GEMINI_DEFAULT_COST_USD = 0.134        # G-8: estimasi tarif Google per gambar (
 DEFAULT_INTEGRATIONS: Dict[str, Any] = {
     "anthropic": {"api_key": "", "model": DEFAULT_MODEL, "enabled": False},
     "gemini": {"api_key": "", "model": GEMINI_DEFAULT_MODEL, "enabled": True},
+    "openai": {"api_key": "", "verified_at": ""},   # GRN Fase 4 — OCR surat jalan
 }
 
 
@@ -45,7 +46,11 @@ async def get_integrations_public() -> Dict[str, Any]:
     gem = cfg.get("gemini", {})
     import os as _os
     gem_key = bool(gem.get("api_key") or _os.environ.get("GEMINI_API_KEY"))
+    oai = cfg.get("openai", {})
+    oai_key = bool(oai.get("api_key") or _os.environ.get("OPENAI_API_KEY"))
     return {
+        "openai": {"has_key": oai_key, "verified_at": oai.get("verified_at") or "",
+                   "source": "integrasi" if oai.get("api_key") else ("env" if oai_key else "")},
         "anthropic": {
             "has_key": bool(ant.get("api_key")),
             "model": ant.get("model") or DEFAULT_MODEL,
@@ -95,7 +100,14 @@ async def update_integrations(patch: Dict[str, Any]) -> Dict[str, Any]:
         gem["model"] = str(patch["gemini_model"]).strip() or GEMINI_DEFAULT_MODEL
     if patch.get("gemini_enabled") is not None:
         gem["enabled"] = bool(patch["gemini_enabled"])
-    to_set = {"anthropic": ant, "gemini": gem, "updated_at": now_iso()}
+    oai = dict(current.get("openai", {}))
+    if patch.get("openai_clear_key"):
+        oai["api_key"], oai["verified_at"] = "", ""
+    elif patch.get("openai_api_key"):
+        oai["api_key"], oai["verified_at"] = str(patch["openai_api_key"]).strip(), ""
+    if patch.get("openai_verified_at") is not None:
+        oai["verified_at"] = str(patch["openai_verified_at"])
+    to_set = {"anthropic": ant, "gemini": gem, "openai": oai, "updated_at": now_iso()}
     existing = await db.system_settings.find_one({"scope": SCOPE}, {"_id": 0})
     if existing:
         await db.system_settings.update_one({"scope": SCOPE}, {"$set": to_set})

@@ -210,6 +210,60 @@ E("receiving.blind_count", group="penerimaan", type="bool", default=True, scopes
   example="Aktif → layar Hitung hanya menampilkan barang & target, tanpa '21 pcs · 2.186 yd'",
   consumers=("services/goods_receipt_service.py:public_view",), risk="medium")
 
+# ── GRN Fase 4 — OCR surat jalan (§4.9) ──────────────────────────────────────
+_OCR_C = ("services/goods_receipt_ocr_service.py:ocr_config",)
+E("receiving.min_photo_short_side_px", group="penerimaan", type="int", default=1000, scopes=("global",),
+  label="Sisi pendek foto SJ minimum (px)", help="Foto lebih kecil diberi peringatan keras (kemungkinan dari WhatsApp).",
+  impact="Terlalu kecil → OCR sering salah baca angka.", example="1000", consumers=_OCR_C, risk="low")
+E("receiving.client_po_patterns", group="penerimaan", type="list",
+  default=[r"(?P<core>\d{3,5})/(CST|SCB)/\d{4}", r"[A-Z]+/PO-(?P<core>\d+)"], scopes=G,
+  label="Pola nomor PO klien (regex, grup 'core')",
+  help="Dipakai mencocokkan nomor PO di SJ dengan PO terbuka. Nomor milik supplier tidak cocok pola dan diabaikan.",
+  impact="Pola salah → baris SJ tidak menemukan PO-nya (harus dipilih manual).", example="(?P<core>\\d{3,5})/CST/\\d{4}",
+  consumers=_OCR_C, risk="medium")
+E("receiving.ocr_enabled", group="penerimaan", type="bool", default=False, scopes=G,
+  label="Baca surat jalan otomatis (OpenAI)", help="Foto SJ dikirim ke OpenAI untuk dibaca. Wajib persetujuan klien.",
+  impact="Mati → SJ diisi manual.", example="Aktif untuk entitas yang sudah setuju", consumers=_OCR_C, risk="high")
+E("receiving.ocr_model_primary", group="penerimaan", type="text", default="gpt-6-sol", scopes=("global",),
+  label="Model OCR utama", help="Nama model OpenAI (Responses API, harus mendukung gambar & JSON Schema).",
+  impact="Model tak tersedia → pembacaan gagal (OCR_API) dan GRN kembali ke isi manual.", example="gpt-6-sol",
+  consumers=_OCR_C, risk="medium")
+E("receiving.ocr_model_second", group="penerimaan", type="text", default="gpt-5.6-sol", scopes=("global",),
+  label="Model pembaca kedua", help="Dipanggil saat hasil pertama meragukan untuk membandingkan per field.",
+  impact="Beda hasil disorot di layar tinjau; tidak ada pemungutan suara otomatis.", example="gpt-5.6-sol",
+  consumers=_OCR_C, risk="low")
+E("receiving.ocr_second_reader_mode", group="penerimaan", type="enum", default="on_doubt", scopes=("global",),
+  options=({"value": "off", "label": "Mati"}, {"value": "on_doubt", "label": "Saat ragu"}, {"value": "always", "label": "Selalu"}),
+  label="Pembaca kedua", help="Saat ragu = baris tidak jelas, koreksi tangan, angka ambigu, total tak cocok, atau nomor SJ kosong.",
+  impact="Selalu = biaya ±2×.", example="on_doubt", consumers=_OCR_C, risk="low")
+E("receiving.ocr_reasoning_effort", group="penerimaan", type="enum", default="low", scopes=("global",),
+  options=({"value": "none", "label": "none"}, {"value": "low", "label": "low"}, {"value": "medium", "label": "medium"}),
+  label="Reasoning effort OCR", help="Dikirim eksplisit ke OpenAI.", impact="Lebih tinggi = lebih lambat & mahal.",
+  example="low", consumers=_OCR_C, risk="low")
+E("receiving.ocr_max_output_tokens", group="penerimaan", type="int", default=6000, scopes=("global",),
+  label="Batas token keluaran OCR", help="Terlalu kecil → OCR_INCOMPLETE.", impact="Biaya maksimum per panggilan.",
+  example="6000", consumers=_OCR_C, risk="low")
+E("receiving.ocr_image_max_side", group="penerimaan", type="int", default=2048, scopes=("global",),
+  label="Sisi panjang gambar ke OCR (px)", help="Gambar diperkecil sebelum dikirim.", impact="Lebih besar = lebih mahal.",
+  example="2048", consumers=_OCR_C, risk="low")
+E("receiving.ocr_max_pages", group="penerimaan", type="int", default=5, scopes=("global",),
+  label="Halaman maksimum per pembacaan", help="Lebih dari ini → ditolak (isi manual).", impact="Batas biaya.",
+  example="5", consumers=_OCR_C, risk="low")
+E("receiving.ocr_extract_packing_list", group="penerimaan", type="bool", default=False, scopes=G,
+  label="Ekstrak packing list", help="Minta OpenAI juga membaca rincian roll packing list (Fase 6).",
+  impact="Token keluaran lebih banyak.", example="Mati", consumers=_OCR_C, risk="low")
+E("receiving.ocr_monthly_budget_usd", group="penerimaan", type="decimal", default=75, scopes=("global",),
+  label="Anggaran OCR per bulan (USD)", help="Tercapai → tidak memanggil AI; GRN diisi manual.",
+  impact="Rem biaya.", example="75", consumers=_OCR_C, risk="medium")
+E("receiving.ocr_budget_warn_pct", group="penerimaan", type="pct", default=80, scopes=("global",),
+  label="Ambang peringatan anggaran OCR (%)", help="Notifikasi admin sekali per bulan.", impact="-",
+  example="80", consumers=_OCR_C, risk="low")
+E("receiving.ocr_price_table", group="penerimaan", type="text",
+  default='{"gpt-6-sol": {"in": 2.0, "cached_in": 0.2, "out": 10.0}, "gpt-5.6-sol": {"in": 5.0, "cached_in": 0.5, "out": 30.0}, "price_version": "2026-09-24"}',
+  scopes=("global",), label="Tabel harga OCR (USD per 1 juta token, JSON)",
+  help="Biaya = usage × harga. Perbarui bila harga OpenAI berubah.", impact="Laporan biaya & rem anggaran.",
+  example='{"gpt-6-sol": {"in": 2.0, "cached_in": 0.2, "out": 10.0}}', consumers=_OCR_C, risk="low")
+
 E("receiving.label_variance_tolerance_percent", group="penerimaan", type="pct", default=2.0,
   min=0, max=50, step=0.5, unit="%", scopes=G,
   label="Toleransi selisih label supplier vs aktual",

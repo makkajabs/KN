@@ -209,7 +209,8 @@ async def add_file(grn_id: str, filename: str, content_type: str, data: bytes, e
     await st.put_object(path, data, ct)
     entry = {"page": len(grn.get("files") or []) + 1, "path": path, "content_type": ct, "bytes": len(data),
              "sha256_original": sha, "sha256_processed": "", "width": width, "height": height,
-             "quality_warnings": [], "uploaded_at": now_iso(), "uploaded_by": actor["name"]}
+             "quality_warnings": (["small_photo"] if width and min(width, height) < int(
+                 await value_of("receiving.min_photo_short_side_px", {}) or 0) else []), "uploaded_at": now_iso(), "uploaded_by": actor["name"]}
     doc = await cas(grn, ["draft", "review"], expected_version, extra={"$push": {"files": entry}})
     dup = await db.goods_receipts.find_one(
         {"entity_id": grn["entity_id"], "id": {"$ne": grn_id}, "status": {"$in": OPEN_GRN},
@@ -392,6 +393,7 @@ async def patch_line(grn_id: str, line_no: int, body: Any, actor: Dict[str, Any]
     fields = body.model_dump(exclude_unset=True, exclude={"expected_version"})
     if body.declared is not None:
         line["declared"] = {**body.declared.model_dump(), "source": "manual"}
+        line["checks"]["qty_parse"] = "ok"   # dicentang manusia
     if body.is_non_stock is not None:
         line["is_non_stock"] = body.is_non_stock
     for k in ("item_code", "description", "po_ref"):
@@ -471,6 +473,8 @@ async def start_count(grn_id: str, expected_version: int, actor: Dict[str, Any],
         if not ln.get("target"):
             errors.append(f"Baris {ln['line_no']}: pilih target (tugas PO / langkah MKO) atau tolak baris.")
             continue
+        if (ln.get("checks") or {}).get("qty_parse") in ("ambiguous", "mismatch"):
+            errors.append(f"Baris {ln['line_no']}: angka SJ ragu ({ln['checks']['qty_parse']}) — periksa & simpan ulang qty.")
         if (ln.get("checks") or {}).get("uom") == "uom_unknown":
             errors.append(f"Baris {ln['line_no']}: satuan tidak bisa dikonversi — "
                           f"{ln['checks'].get('uom_message') or 'perbaiki satuan'}.")

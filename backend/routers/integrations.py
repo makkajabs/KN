@@ -32,7 +32,8 @@ async def update_integrations(payload: IntegrationsUpdate, request: Request) -> 
     # Audit TANPA membocorkan key (catat hanya status perubahan).
     await audit(actor["name"], "integrations_update", "system_settings", "integrations",
                 {"key_changed": bool(patch.get("anthropic_api_key") or patch.get("anthropic_clear_key")
-                                     or patch.get("gemini_api_key") or patch.get("gemini_clear_key")),
+                                     or patch.get("gemini_api_key") or patch.get("gemini_clear_key")
+                                     or patch.get("openai_api_key") or patch.get("openai_clear_key")),
                  "model": res["anthropic"]["model"], "enabled": res["anthropic"]["enabled"],
                  "gemini_model": res["gemini"]["model"], "gemini_enabled": res["gemini"]["enabled"]})
     return res
@@ -59,3 +60,25 @@ async def test_gemini(request: Request) -> Dict[str, Any]:
     await audit(actor["name"], "integrations_gemini_test", "system_settings", "integrations",
                 {"ok": True, "models_seen": res.get("models_seen")})
     return {"ok": True, "verified_at": ts, "model": cfg["model"], **res}
+
+
+@router.post("/admin/integrations/openai/test")
+async def test_openai(request: Request) -> Dict[str, Any]:
+    """GRN Fase 4 — uji kunci OpenAI (daftar model; tanpa biaya token). Lulus → `verified_at` diisi."""
+    actor = await require_permission(request, "hr", "manage_settings")
+    from core_utils import now_iso
+    from services import ocr_openai_client as oc
+    key = await oc.resolve_key()
+    if not key:
+        raise HTTPException(status_code=400, detail="Kunci OpenAI belum diisi.")
+    try:
+        res = await oc.test_connection(key)
+    except ValueError as e:
+        await integ.update_integrations({"openai_verified_at": ""})
+        await audit(actor["name"], "integrations_openai_test", "system_settings", "integrations", {"ok": False})
+        raise HTTPException(status_code=400, detail=str(e))
+    ts = now_iso()
+    await integ.update_integrations({"openai_verified_at": ts})
+    await audit(actor["name"], "integrations_openai_test", "system_settings", "integrations",
+                {"ok": True, "models_seen": res.get("models_seen")})
+    return {"ok": True, "verified_at": ts, **res}
